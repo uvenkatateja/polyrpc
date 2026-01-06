@@ -1,6 +1,6 @@
 {
   "name": "polyrpc",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Real-time Python to TypeScript type generator - The invisible bridge between Python and TypeScript",
   "bin": {
     "polyrpc": "./bin/polyrpc.js"
