@@ -1,0 +1,64 @@
+{
+  "name": "@polyrpc/react",
+  "version": "0.1.0",
+  "description": "React Query integration for PolyRPC",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup src/index.tsx --format cjs,esm --dts --external react --external @tanstack/react-query",
+    "dev": "tsup src/index.tsx --format cjs,esm --dts --watch --external react --external @tanstack/react-query",
+    "test": "vitest run",
+    "lint": "eslint src/",
+    "prepublishOnly": "pnpm build"
+  },
+  "keywords": [
+    "polyrpc",
+    "react",
+    "react-query",
+    "tanstack-query",
+    "python",
+    "typescript",
+    "hooks"
+  ],
+  "author": "PolyRPC Contributors",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/polyrpc/polyrpc.git",
+    "directory": "packages/react"
+  },
+  "bugs": {
+    "url": "https://github.com/polyrpc/polyrpc/issues"
+  },
+  "homepage": "https://polyrpc.dev",
+  "dependencies": {
+    "@polyrpc/client": "workspace:*"
+  },
+  "devDependencies": {
+    "@tanstack/react-query": "^5.17.0",
+    "@types/react": "^18.2.48",
+    "react": "^18.2.0",
+    "tsup": "^8.0.1",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.0"
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": ">=5.0.0",
+    "react": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

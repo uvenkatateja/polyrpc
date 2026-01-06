@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+*.vsix
+.next/
+out/
+
+# Environment
+.env
+.env.local
+.env.production.local
+
+# IDE
+.idea/
+*.swp
+*.swo
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Rust
+target/
+*.pdb
+
+# Generated
+packages/*/dist/
+polyrpc.d.ts
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Testing
+coverage/
+
+# Turbo
+.turbo/
+
+# Vercel
+.vercel/
+
+# Lock files (keep pnpm-lock.yaml)
+package-lock.json
+yarn.lock

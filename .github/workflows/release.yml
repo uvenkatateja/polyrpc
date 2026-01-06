@@ -1,0 +1,104 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-rust:
+    name: Build Rust Binary
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact: polyrpc
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact: polyrpc
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact: polyrpc
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: polyrpc.exe
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+        working-directory: crates/sentinel
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: polyrpc-${{ matrix.target }}
+          path: crates/sentinel/target/${{ matrix.target }}/release/${{ matrix.artifact }}
+
+  publish-npm:
+    name: Publish to npm
+    needs: build-rust
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 8
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+          registry-url: 'https://registry.npmjs.org'
+      
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      
+      - name: Copy binaries to CLI package
+        run: |
+          mkdir -p packages/cli/native
+          cp artifacts/polyrpc-x86_64-unknown-linux-gnu/polyrpc packages/cli/native/polyrpc-x86_64-unknown-linux-gnu
+          cp artifacts/polyrpc-x86_64-apple-darwin/polyrpc packages/cli/native/polyrpc-x86_64-apple-darwin
+          cp artifacts/polyrpc-aarch64-apple-darwin/polyrpc packages/cli/native/polyrpc-aarch64-apple-darwin
+          cp artifacts/polyrpc-x86_64-pc-windows-msvc/polyrpc.exe packages/cli/native/polyrpc-x86_64-pc-windows-msvc.exe
+          chmod +x packages/cli/native/polyrpc-*
+      
+      - run: pnpm install
+      - run: pnpm build
+      
+      - name: Publish packages
+        run: |
+          pnpm -r publish --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  create-release:
+    name: Create GitHub Release
+    needs: build-rust
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            artifacts/polyrpc-x86_64-unknown-linux-gnu/polyrpc
+            artifacts/polyrpc-x86_64-apple-darwin/polyrpc
+            artifacts/polyrpc-aarch64-apple-darwin/polyrpc
+            artifacts/polyrpc-x86_64-pc-windows-msvc/polyrpc.exe
+          generate_release_notes: true

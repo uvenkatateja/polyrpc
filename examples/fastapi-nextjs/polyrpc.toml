@@ -1,0 +1,32 @@
+# PolyRPC Configuration
+# Run `polyrpc watch` to start real-time type generation
+
+[python]
+# Directory containing your Python source files
+source_dir = "backend"
+
+# File patterns to include
+include = ["**/*.py"]
+
+# File patterns to exclude
+exclude = [
+    "**/__pycache__/**",
+    "**/venv/**",
+    "**/.venv/**",
+    "**/test_*.py",
+    "**/*_test.py"
+]
+
+[typescript]
+# Output file for generated TypeScript definitions
+output_file = "frontend/src/lib/polyrpc.d.ts"
+
+# Generate runtime client code
+generate_client = true
+
+[api]
+# Base URL for API calls (used in generated client)
+base_url = "/api"
+
+# Prefix for API routes
+prefix = ""
