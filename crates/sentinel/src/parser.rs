@@ -13,24 +13,45 @@ use walkdir::WalkDir;
 /// Represents a parsed Python type
 #[derive(Debug, Clone)]
 pub enum PyType {
+    // Basic types
     String,
     Int,
     Float,
     Bool,
     None,
     Any,
+    
+    // Date/Time types
+    DateTime,
+    Date,
+    Time,
+    TimeDelta,
+    
+    // Special types
+    UUID,
+    Decimal,
+    Bytes,
+    
+    // Collection types
     List(Box<PyType>),
+    Set(Box<PyType>),
+    FrozenSet(Box<PyType>),
     Dict(Box<PyType>, Box<PyType>),
+    Tuple(Vec<PyType>),
+    
+    // Optional/Union types
     Optional(Box<PyType>),
     Union(Vec<PyType>),
     Literal(Vec<String>),
-    /// Generic type parameter (T, K, V, etc.)
+    
+    // Generic types
     Generic(String),
-    /// Generic type with parameters (Response<T>)
     GenericType(String, Vec<PyType>),
-    /// Reference to another model
+    
+    // Reference to another model
     Reference(String),
-    /// Unknown type - will be mapped to `unknown`
+    
+    // Unknown type - will be mapped to `unknown`
     Unknown(String),
 }
 
@@ -488,6 +509,18 @@ pub fn parse_type_annotation(type_str: &str) -> PyType {
         "bool" | "Boolean" => return PyType::Bool,
         "None" | "NoneType" => return PyType::None,
         "Any" => return PyType::Any,
+        
+        // Date/Time types
+        "datetime" | "DateTime" => return PyType::DateTime,
+        "date" | "Date" => return PyType::Date,
+        "time" | "Time" => return PyType::Time,
+        "timedelta" | "TimeDelta" => return PyType::TimeDelta,
+        
+        // Special types
+        "UUID" | "uuid" => return PyType::UUID,
+        "Decimal" | "decimal" => return PyType::Decimal,
+        "bytes" | "Bytes" => return PyType::Bytes,
+        
         _ => {}
     }
     
@@ -502,6 +535,34 @@ pub fn parse_type_annotation(type_str: &str) -> PyType {
     }
     if let Some(inner) = extract_generic(type_str, "list") {
         return PyType::List(Box::new(parse_type_annotation(inner)));
+    }
+    
+    // Handle Set[T]
+    if let Some(inner) = extract_generic(type_str, "Set") {
+        return PyType::Set(Box::new(parse_type_annotation(inner)));
+    }
+    if let Some(inner) = extract_generic(type_str, "set") {
+        return PyType::Set(Box::new(parse_type_annotation(inner)));
+    }
+    
+    // Handle FrozenSet[T]
+    if let Some(inner) = extract_generic(type_str, "FrozenSet") {
+        return PyType::FrozenSet(Box::new(parse_type_annotation(inner)));
+    }
+    if let Some(inner) = extract_generic(type_str, "frozenset") {
+        return PyType::FrozenSet(Box::new(parse_type_annotation(inner)));
+    }
+    
+    // Handle Tuple[A, B, C]
+    if let Some(inner) = extract_generic(type_str, "Tuple") {
+        let parts: Vec<&str> = split_generic_args(inner);
+        let types: Vec<PyType> = parts.iter().map(|p| parse_type_annotation(p)).collect();
+        return PyType::Tuple(types);
+    }
+    if let Some(inner) = extract_generic(type_str, "tuple") {
+        let parts: Vec<&str> = split_generic_args(inner);
+        let types: Vec<PyType> = parts.iter().map(|p| parse_type_annotation(p)).collect();
+        return PyType::Tuple(types);
     }
     
     // Handle Dict[K, V]
@@ -577,7 +638,11 @@ pub fn parse_type_annotation(type_str: &str) -> PyType {
         let inner = &type_str[bracket_pos + 1..type_str.len() - 1];
         
         // Check if it's a known generic (List, Dict, etc.) - already handled above
-        if !matches!(base_type, "List" | "list" | "Dict" | "dict" | "Optional" | "Union" | "Literal") {
+        if !matches!(
+            base_type,
+            "List" | "list" | "Dict" | "dict" | "Optional" | "Union" | "Literal" 
+            | "Set" | "set" | "FrozenSet" | "frozenset" | "Tuple" | "tuple"
+        ) {
             let type_params: Vec<PyType> = split_generic_args(inner)
                 .iter()
                 .map(|p| parse_type_annotation(p))
@@ -710,8 +775,13 @@ fn extract_fastapi_routes(
                     .map(|s| s[1..s.len() - 1].to_string())
                     .collect();
                 
-                // Extract request body model from function parameters
-                let request_model = extract_request_body_model(params_node, source, &extracted.models);
+                // Extract request body model and query params from function parameters
+                let (request_model, query_params) = extract_route_params(
+                    params_node, 
+                    source, 
+                    &extracted.models,
+                    &path_params
+                );
                 
                 extracted.routes.push(ApiRoute {
                     method,
@@ -719,7 +789,7 @@ fn extract_fastapi_routes(
                     function_name: func_name,
                     request_model,
                     response_model: return_type,
-                    query_params: Vec::new(),
+                    query_params,
                     path_params,
                 });
             }
@@ -729,35 +799,105 @@ fn extract_fastapi_routes(
     Ok(())
 }
 
-/// Extract request body model from function parameters
-/// Looks for parameters with type annotations that match known Pydantic models
-fn extract_request_body_model(
+/// Extract request body model and query parameters from function parameters
+/// Returns (request_model, query_params)
+fn extract_route_params(
     params_node: Option<Node>,
     source: &[u8],
     models: &HashMap<String, PydanticModel>,
-) -> Option<String> {
-    let params = params_node?;
+    path_params: &[String],
+) -> (Option<String>, Vec<ModelField>) {
+    let params = match params_node {
+        Some(p) => p,
+        None => return (None, Vec::new()),
+    };
+    
+    let mut request_model = None;
+    let mut query_params = Vec::new();
     
     let mut cursor = params.walk();
     for child in params.children(&mut cursor) {
-        // Look for typed parameters: (param_name: TypeName)
+        // Look for typed parameters: (param_name: TypeName) or (param_name: TypeName = default)
         if child.kind() == "typed_parameter" || child.kind() == "typed_default_parameter" {
+            let param_text = child.utf8_text(source).unwrap_or("");
+            
+            // Extract parameter name
             let mut param_cursor = child.walk();
+            let mut param_name = None;
+            let mut param_type = None;
+            let mut is_query = false;
+            let mut is_optional = false;
+            
             for param_child in child.children(&mut param_cursor) {
-                if param_child.kind() == "type" {
-                    if let Ok(type_name) = param_child.utf8_text(source) {
-                        let type_name = type_name.trim();
-                        // Check if this type is a known Pydantic model
-                        if models.contains_key(type_name) {
-                            return Some(type_name.to_string());
+                match param_child.kind() {
+                    "identifier" => {
+                        if param_name.is_none() {
+                            param_name = param_child.utf8_text(source).ok().map(|s| s.to_string());
                         }
                     }
+                    "type" => {
+                        param_type = param_child.utf8_text(source).ok().map(|s| s.to_string());
+                    }
+                    _ => {}
+                }
+            }
+            
+            // Check if it's a Query() parameter by looking at the default value
+            if param_text.contains("Query(") || param_text.contains("Query[") {
+                is_query = true;
+            }
+            
+            // Check if it has a default value (making it optional)
+            if param_text.contains("=") {
+                is_optional = true;
+            }
+            
+            if let (Some(name), Some(type_str)) = (param_name, param_type) {
+                // Skip 'self', 'request', 'response', and path params
+                if name == "self" || name == "request" || name == "response" {
+                    continue;
+                }
+                
+                // Skip path parameters
+                if path_params.contains(&name) {
+                    continue;
+                }
+                
+                let type_str_clean = type_str.trim();
+                
+                // Check if this type is a known Pydantic model (request body)
+                if models.contains_key(type_str_clean) && !is_query {
+                    request_model = Some(type_str_clean.to_string());
+                    continue;
+                }
+                
+                // If it's a Query param OR a simple type (not a model), treat as query param
+                // Simple types: str, int, float, bool, Optional[...], List[...]
+                let is_simple_type = matches!(
+                    type_str_clean,
+                    "str" | "int" | "float" | "bool" | "None"
+                ) || type_str_clean.starts_with("Optional")
+                  || type_str_clean.starts_with("List")
+                  || type_str_clean.starts_with("list")
+                  || type_str_clean.contains(" | ");
+                
+                if is_query || is_simple_type {
+                    let py_type = parse_type_annotation(type_str_clean);
+                    let is_opt = matches!(&py_type, PyType::Optional(_)) || is_optional;
+                    
+                    query_params.push(ModelField {
+                        name,
+                        py_type,
+                        optional: is_opt,
+                        default: None,
+                        description: None,
+                    });
                 }
             }
         }
     }
     
-    None
+    (request_model, query_params)
 }
 
 #[cfg(test)]

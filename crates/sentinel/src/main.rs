@@ -56,19 +56,46 @@ async fn main() -> Result<()> {
         }
         Commands::Watch { config } => {
             let cfg = config::load_config(&config)?;
+            
+            // Resolve paths relative to config file location
+            let config_dir = config.parent().unwrap_or(std::path::Path::new("."));
+            let source_dir = config_dir.join(&cfg.python.source_dir);
+            let output_file = config_dir.join(&cfg.typescript.output_file);
+            
             println!(
                 "{} Watching {} → {}",
                 "👁".bright_yellow(),
-                cfg.python.source_dir.display().to_string().cyan(),
-                cfg.typescript.output_file.display().to_string().green()
+                source_dir.display().to_string().cyan(),
+                output_file.display().to_string().green()
             );
-            watcher::watch(cfg).await?;
+            
+            // Create a new config with resolved paths
+            let resolved_cfg = config::Config {
+                python: config::PythonConfig {
+                    source_dir,
+                    include: cfg.python.include,
+                    exclude: cfg.python.exclude,
+                },
+                typescript: config::TypeScriptConfig {
+                    output_file,
+                    generate_client: cfg.typescript.generate_client,
+                },
+                api: cfg.api,
+            };
+            
+            watcher::watch(resolved_cfg).await?;
         }
         Commands::Generate { config } => {
             let cfg = config::load_config(&config)?;
-            let types = parser::parse_directory(&cfg.python.source_dir)?;
+            
+            // Resolve paths relative to config file location
+            let config_dir = config.parent().unwrap_or(std::path::Path::new("."));
+            let source_dir = config_dir.join(&cfg.python.source_dir);
+            let output_file = config_dir.join(&cfg.typescript.output_file);
+            
+            let types = parser::parse_directory(&source_dir)?;
             generator::write_definitions(
-                &cfg.typescript.output_file,
+                &output_file,
                 &types,
                 &cfg.api.base_url,
             )?;

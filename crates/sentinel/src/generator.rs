@@ -70,15 +70,41 @@ fn generate_interface(model: &PydanticModel) -> String {
 /// Convert a Python type to TypeScript type string
 fn py_type_to_ts(py_type: &PyType) -> String {
     match py_type {
+        // Basic types
         PyType::String => "string".to_string(),
         PyType::Int | PyType::Float => "number".to_string(),
         PyType::Bool => "boolean".to_string(),
         PyType::None => "null".to_string(),
         PyType::Any => "unknown".to_string(),
+        
+        // Date/Time types - all serialize to ISO strings in JSON
+        PyType::DateTime => "string".to_string(),  // ISO 8601 format
+        PyType::Date => "string".to_string(),      // YYYY-MM-DD
+        PyType::Time => "string".to_string(),      // HH:MM:SS
+        PyType::TimeDelta => "number".to_string(), // milliseconds
+        
+        // Special types
+        PyType::UUID => "string".to_string(),      // UUID string format
+        PyType::Decimal => "string".to_string(),   // Decimal as string for precision
+        PyType::Bytes => "string".to_string(),     // Base64 encoded
+        
+        // Collection types
         PyType::List(inner) => format!("{}[]", py_type_to_ts(inner)),
+        PyType::Set(inner) => format!("{}[]", py_type_to_ts(inner)),  // Sets become arrays
+        PyType::FrozenSet(inner) => format!("readonly {}[]", py_type_to_ts(inner)),  // Immutable
+        PyType::Tuple(types) => {
+            if types.is_empty() {
+                "[]".to_string()
+            } else {
+                let ts_types: Vec<String> = types.iter().map(py_type_to_ts).collect();
+                format!("[{}]", ts_types.join(", "))
+            }
+        }
         PyType::Dict(key, value) => {
             format!("Record<{}, {}>", py_type_to_ts(key), py_type_to_ts(value))
         }
+        
+        // Optional/Union types
         PyType::Optional(inner) => format!("{} | null", py_type_to_ts(inner)),
         PyType::Union(types) => {
             let ts_types: Vec<String> = types.iter().map(py_type_to_ts).collect();
@@ -88,12 +114,18 @@ fn py_type_to_ts(py_type: &PyType) -> String {
             let quoted: Vec<String> = values.iter().map(|v| format!("\"{}\"", v)).collect();
             quoted.join(" | ")
         }
+        
+        // Generic types
         PyType::Generic(name) => name.clone(),
         PyType::GenericType(base, params) => {
             let param_strs: Vec<String> = params.iter().map(py_type_to_ts).collect();
             format!("{}<{}>", base, param_strs.join(", "))
         }
+        
+        // Reference to another model
         PyType::Reference(name) => name.clone(),
+        
+        // Unknown type
         PyType::Unknown(_name) => "unknown".to_string(),
     }
 }
@@ -114,6 +146,44 @@ fn convert_python_type_string(py_type: &str) -> String {
         return format!("{}[]", convert_python_type_string(inner));
     }
     
+    // Handle Set[X] -> X[]
+    if py_type.starts_with("Set[") && py_type.ends_with(']') {
+        let inner = &py_type[4..py_type.len() - 1];
+        return format!("{}[]", convert_python_type_string(inner));
+    }
+    if py_type.starts_with("set[") && py_type.ends_with(']') {
+        let inner = &py_type[4..py_type.len() - 1];
+        return format!("{}[]", convert_python_type_string(inner));
+    }
+    
+    // Handle FrozenSet[X] -> readonly X[]
+    if py_type.starts_with("FrozenSet[") && py_type.ends_with(']') {
+        let inner = &py_type[10..py_type.len() - 1];
+        return format!("readonly {}[]", convert_python_type_string(inner));
+    }
+    if py_type.starts_with("frozenset[") && py_type.ends_with(']') {
+        let inner = &py_type[10..py_type.len() - 1];
+        return format!("readonly {}[]", convert_python_type_string(inner));
+    }
+    
+    // Handle Tuple[A, B, C] -> [A, B, C]
+    if py_type.starts_with("Tuple[") && py_type.ends_with(']') {
+        let inner = &py_type[6..py_type.len() - 1];
+        let parts: Vec<String> = split_type_args(inner)
+            .iter()
+            .map(|p| convert_python_type_string(p))
+            .collect();
+        return format!("[{}]", parts.join(", "));
+    }
+    if py_type.starts_with("tuple[") && py_type.ends_with(']') {
+        let inner = &py_type[6..py_type.len() - 1];
+        let parts: Vec<String> = split_type_args(inner)
+            .iter()
+            .map(|p| convert_python_type_string(p))
+            .collect();
+        return format!("[{}]", parts.join(", "));
+    }
+    
     // Handle Optional[X] -> X | null
     if py_type.starts_with("Optional[") && py_type.ends_with(']') {
         let inner = &py_type[9..py_type.len() - 1];
@@ -123,12 +193,23 @@ fn convert_python_type_string(py_type: &str) -> String {
     // Handle Dict[K, V] -> Record<K, V>
     if py_type.starts_with("Dict[") && py_type.ends_with(']') {
         let inner = &py_type[5..py_type.len() - 1];
-        let parts: Vec<&str> = inner.splitn(2, ',').collect();
+        let parts = split_type_args(inner);
         if parts.len() == 2 {
             return format!(
                 "Record<{}, {}>",
-                convert_python_type_string(parts[0].trim()),
-                convert_python_type_string(parts[1].trim())
+                convert_python_type_string(&parts[0]),
+                convert_python_type_string(&parts[1])
+            );
+        }
+    }
+    if py_type.starts_with("dict[") && py_type.ends_with(']') {
+        let inner = &py_type[5..py_type.len() - 1];
+        let parts = split_type_args(inner);
+        if parts.len() == 2 {
+            return format!(
+                "Record<{}, {}>",
+                convert_python_type_string(&parts[0]),
+                convert_python_type_string(&parts[1])
             );
         }
     }
@@ -140,12 +221,46 @@ fn convert_python_type_string(py_type: &str) -> String {
         "bool" => "boolean".to_string(),
         "None" => "null".to_string(),
         "dict" => "Record<string, unknown>".to_string(),
+        // Date/Time types
+        "datetime" | "DateTime" => "string".to_string(),
+        "date" | "Date" => "string".to_string(),
+        "time" | "Time" => "string".to_string(),
+        "timedelta" | "TimeDelta" => "number".to_string(),
+        // Special types
+        "UUID" | "uuid" => "string".to_string(),
+        "Decimal" | "decimal" => "string".to_string(),
+        "bytes" | "Bytes" => "string".to_string(),
         _ => py_type.to_string(),
     }
 }
 
+/// Split type arguments respecting nested brackets
+fn split_type_args(args: &str) -> Vec<String> {
+    let mut result = Vec::new();
+    let mut depth = 0;
+    let mut start = 0;
+    
+    for (i, c) in args.char_indices() {
+        match c {
+            '[' => depth += 1,
+            ']' => depth -= 1,
+            ',' if depth == 0 => {
+                result.push(args[start..i].trim().to_string());
+                start = i + 1;
+            }
+            _ => {}
+        }
+    }
+    
+    if start < args.len() {
+        result.push(args[start..].trim().to_string());
+    }
+    
+    result
+}
 
-/// Generate input type for a route
+
+/// Generate input type for a route (includes path params, query params, and body)
 fn generate_route_input_type(route: &ApiRoute) -> String {
     let mut parts = Vec::new();
     
@@ -155,6 +270,20 @@ fn generate_route_input_type(route: &ApiRoute) -> String {
             .path_params
             .iter()
             .map(|p| format!("{}: string | number", p))
+            .collect();
+        parts.push(format!("{{ {} }}", params.join("; ")));
+    }
+    
+    // Query parameters
+    if !route.query_params.is_empty() {
+        let params: Vec<String> = route
+            .query_params
+            .iter()
+            .map(|p| {
+                let ts_type = py_type_to_ts(&p.py_type);
+                let optional = if p.optional { "?" } else { "" };
+                format!("{}{}: {}", p.name, optional, ts_type)
+            })
             .collect();
         parts.push(format!("{{ {} }}", params.join("; ")));
     }
@@ -224,13 +353,30 @@ fn generate_client_implementation(types: &ExtractedTypes, base_url: &str) -> Str
 
 "#);
     
-    // Fetch helper
+    // Fetch helper with query params support
     output.push_str(r#"async function request<TOutput>(
   method: string,
   path: string,
-  body?: unknown
+  body?: unknown,
+  query?: Record<string, unknown>
 ): Promise<TOutput> {
-  const response = await fetch(`${BASE_URL}${path}`, {
+  let url = `${BASE_URL}${path}`;
+  
+  // Add query parameters
+  if (query) {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (value !== undefined && value !== null) {
+        params.append(key, String(value));
+      }
+    }
+    const queryString = params.toString();
+    if (queryString) {
+      url += `?${queryString}`;
+    }
+  }
+  
+  const response = await fetch(url, {
     method,
     headers: {
       'Content-Type': 'application/json',
@@ -291,6 +437,7 @@ fn generate_client_implementation(types: &ExtractedTypes, base_url: &str) -> Str
                 .unwrap_or_else(|| "void".to_string());
             
             let has_path_params = !route.path_params.is_empty();
+            let has_query_params = !route.query_params.is_empty();
             let has_body = route.request_model.is_some();
             
             // Build input type
@@ -311,6 +458,16 @@ fn generate_client_implementation(types: &ExtractedTypes, base_url: &str) -> Str
                 format!("'{}'", route.path)
             };
             
+            // Build query params extraction
+            let query_extract = if has_query_params {
+                let params: Vec<String> = route.query_params.iter()
+                    .map(|p| p.name.clone())
+                    .collect();
+                format!("{{ {} }}", params.join(", "))
+            } else {
+                String::new()
+            };
+            
             // Determine if this is a query (GET) or mutation (POST/PUT/DELETE/PATCH)
             let is_query = method == "GET";
             
@@ -319,10 +476,25 @@ fn generate_client_implementation(types: &ExtractedTypes, base_url: &str) -> Str
             // Generate query method
             if is_query {
                 if needs_input {
-                    output.push_str(&format!(
-                        "      query: (input: {}) => request<{}>('GET', {}),\n",
-                        input_type, response_type, path_expr
-                    ));
+                    if has_query_params && !has_path_params && !has_body {
+                        // Only query params
+                        output.push_str(&format!(
+                            "      query: (input: {}) => request<{}>('GET', {}, undefined, {}),\n",
+                            input_type, response_type, path_expr, query_extract
+                        ));
+                    } else if has_query_params {
+                        // Query params with path params
+                        output.push_str(&format!(
+                            "      query: (input: {}) => request<{}>('GET', {}, undefined, {}),\n",
+                            input_type, response_type, path_expr, query_extract
+                        ));
+                    } else {
+                        // Just path params
+                        output.push_str(&format!(
+                            "      query: (input: {}) => request<{}>('GET', {}),\n",
+                            input_type, response_type, path_expr
+                        ));
+                    }
                 } else {
                     output.push_str(&format!(
                         "      query: () => request<{}>('GET', {}),\n",
@@ -431,6 +603,41 @@ mod tests {
     }
 
     #[test]
+    fn test_py_type_to_ts_datetime() {
+        assert_eq!(py_type_to_ts(&PyType::DateTime), "string");
+        assert_eq!(py_type_to_ts(&PyType::Date), "string");
+        assert_eq!(py_type_to_ts(&PyType::Time), "string");
+        assert_eq!(py_type_to_ts(&PyType::TimeDelta), "number");
+    }
+
+    #[test]
+    fn test_py_type_to_ts_special() {
+        assert_eq!(py_type_to_ts(&PyType::UUID), "string");
+        assert_eq!(py_type_to_ts(&PyType::Decimal), "string");
+        assert_eq!(py_type_to_ts(&PyType::Bytes), "string");
+    }
+
+    #[test]
+    fn test_py_type_to_ts_collections() {
+        assert_eq!(
+            py_type_to_ts(&PyType::Set(Box::new(PyType::String))),
+            "string[]"
+        );
+        assert_eq!(
+            py_type_to_ts(&PyType::FrozenSet(Box::new(PyType::Int))),
+            "readonly number[]"
+        );
+        assert_eq!(
+            py_type_to_ts(&PyType::Tuple(vec![PyType::String, PyType::Int, PyType::Bool])),
+            "[string, number, boolean]"
+        );
+        assert_eq!(
+            py_type_to_ts(&PyType::Tuple(vec![])),
+            "[]"
+        );
+    }
+
+    #[test]
     fn test_generate_interface() {
         let model = PydanticModel {
             name: "User".to_string(),
@@ -480,5 +687,16 @@ mod tests {
         assert!(output.contains("export enum Status"));
         assert!(output.contains("ACTIVE = \"active\""));
         assert!(output.contains("INACTIVE = \"inactive\""));
+    }
+
+    #[test]
+    fn test_convert_python_type_string() {
+        assert_eq!(convert_python_type_string("str"), "string");
+        assert_eq!(convert_python_type_string("List[User]"), "User[]");
+        assert_eq!(convert_python_type_string("Set[str]"), "string[]");
+        assert_eq!(convert_python_type_string("FrozenSet[int]"), "readonly number[]");
+        assert_eq!(convert_python_type_string("Tuple[str, int, bool]"), "[string, number, boolean]");
+        assert_eq!(convert_python_type_string("datetime"), "string");
+        assert_eq!(convert_python_type_string("UUID"), "string");
     }
 }

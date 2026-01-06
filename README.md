@@ -173,11 +173,48 @@ base_url = "http://localhost:8000"
 | `int`, `float` | `number` |
 | `bool` | `boolean` |
 | `List[T]` | `T[]` |
+| `Set[T]` | `T[]` |
+| `FrozenSet[T]` | `readonly T[]` |
+| `Tuple[A, B]` | `[A, B]` |
 | `Dict[K, V]` | `Record<K, V>` |
 | `Optional[T]` | `T \| null` |
 | `Union[A, B]` | `A \| B` |
 | `Literal["a", "b"]` | `"a" \| "b"` |
 | `Enum` | TypeScript `enum` |
+| `datetime` | `string` (ISO 8601) |
+| `date` | `string` (YYYY-MM-DD) |
+| `time` | `string` (HH:MM:SS) |
+| `timedelta` | `number` (milliseconds) |
+| `UUID` | `string` |
+| `Decimal` | `string` |
+| `bytes` | `string` (base64) |
+
+## Query Parameters
+
+PolyRPC automatically extracts FastAPI `Query()` parameters:
+
+```python
+@app.get("/users")
+def get_users(
+    skip: int = 0,
+    limit: int = 100,
+    search: Optional[str] = None,
+    role: Optional[UserRole] = None
+) -> List[User]:
+    return []
+```
+
+Generates:
+
+```typescript
+py.users.get_users.query({
+  skip: 0,
+  limit: 50,
+  search: "john",
+  role: UserRole.ADMIN
+});
+// → GET /users?skip=0&limit=50&search=john&role=admin
+```
 
 ## Packages
 
