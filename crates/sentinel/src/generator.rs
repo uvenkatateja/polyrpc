@@ -145,6 +145,52 @@ fn py_type_to_ts(py_type: &PyType) -> String {
     }
 }
 
+/// Convert a Python type string (like "List[User]") to TypeScript syntax
+fn convert_python_type_string(py_type: &str) -> String {
+    let py_type = py_type.trim();
+    
+    // Handle List[X] -> X[]
+    if py_type.starts_with("List[") && py_type.ends_with(']') {
+        let inner = &py_type[5..py_type.len() - 1];
+        return format!("{}[]", convert_python_type_string(inner));
+    }
+    
+    // Handle list[X] -> X[]
+    if py_type.starts_with("list[") && py_type.ends_with(']') {
+        let inner = &py_type[5..py_type.len() - 1];
+        return format!("{}[]", convert_python_type_string(inner));
+    }
+    
+    // Handle Optional[X] -> X | null
+    if py_type.starts_with("Optional[") && py_type.ends_with(']') {
+        let inner = &py_type[9..py_type.len() - 1];
+        return format!("{} | null", convert_python_type_string(inner));
+    }
+    
+    // Handle Dict[K, V] -> Record<K, V>
+    if py_type.starts_with("Dict[") && py_type.ends_with(']') {
+        let inner = &py_type[5..py_type.len() - 1];
+        let parts: Vec<&str> = inner.splitn(2, ',').collect();
+        if parts.len() == 2 {
+            return format!(
+                "Record<{}, {}>",
+                convert_python_type_string(parts[0].trim()),
+                convert_python_type_string(parts[1].trim())
+            );
+        }
+    }
+    
+    // Handle basic types
+    match py_type {
+        "str" => "string".to_string(),
+        "int" | "float" => "number".to_string(),
+        "bool" => "boolean".to_string(),
+        "None" => "null".to_string(),
+        "dict" => "Record<string, unknown>".to_string(),
+        _ => py_type.to_string(), // Keep as-is (model references)
+    }
+}
+
 /// Generate API route types
 fn generate_api_types(routes: &[ApiRoute], _models: &HashMap<String, PydanticModel>) -> String {
     let mut output = String::new();
@@ -164,11 +210,11 @@ fn generate_api_types(routes: &[ApiRoute], _models: &HashMap<String, PydanticMod
         // Input type (path params + query params + body)
         let input_type = generate_route_input_type(&route);
         
-        // Output type
+        // Output type - convert Python type syntax to TypeScript
         let output_type = route
             .response_model
             .as_ref()
-            .map(|m| m.clone())
+            .map(|m| convert_python_type_string(m))
             .unwrap_or_else(|| "void".to_string());
         
         output.push_str(&format!(
@@ -242,7 +288,7 @@ fn generate_namespace(types: &ExtractedTypes) -> String {
             let response_type = route
                 .response_model
                 .as_ref()
-                .cloned()
+                .map(|m| convert_python_type_string(m))
                 .unwrap_or_else(|| "void".to_string());
             
             let input_type = generate_route_input_type(route);

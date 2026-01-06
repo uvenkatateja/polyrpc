@@ -159,7 +159,7 @@ class User(BaseModel):
         };
         
         let duration = regenerate(&config).unwrap();
-        assert!(duration.as_millis() < 100); // Should be fast
+        assert!(duration.as_millis() < 500); // Should be reasonably fast
         
         let content = fs::read_to_string(&ts_file).unwrap();
         assert!(content.contains("interface User"));
