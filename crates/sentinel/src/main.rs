@@ -69,9 +69,10 @@ async fn main() -> Result<()> {
             let types = parser::parse_directory(&cfg.python.source_dir)?;
             generator::write_definitions(&cfg.typescript.output_file, &types)?;
             println!(
-                "{} Generated {} models, {} routes",
+                "{} Generated {} models, {} enums, {} routes",
                 "✓".green(),
                 types.models.len().to_string().bright_yellow(),
+                types.enums.len().to_string().bright_yellow(),
                 types.routes.len().to_string().bright_yellow()
             );
         }

@@ -24,10 +24,29 @@ pub enum PyType {
     Optional(Box<PyType>),
     Union(Vec<PyType>),
     Literal(Vec<String>),
+    /// Generic type parameter (T, K, V, etc.)
+    Generic(String),
+    /// Generic type with parameters (Response<T>)
+    GenericType(String, Vec<PyType>),
     /// Reference to another model
     Reference(String),
     /// Unknown type - will be mapped to `unknown`
     Unknown(String),
+}
+
+/// A Python Enum definition
+#[derive(Debug, Clone)]
+pub struct PyEnum {
+    pub name: String,
+    pub variants: Vec<EnumVariant>,
+    pub docstring: Option<String>,
+}
+
+/// A variant in a Python Enum
+#[derive(Debug, Clone)]
+pub struct EnumVariant {
+    pub name: String,
+    pub value: String,
 }
 
 /// A field in a Pydantic model
@@ -66,6 +85,7 @@ pub struct ApiRoute {
 #[derive(Debug, Default)]
 pub struct ExtractedTypes {
     pub models: HashMap<String, PydanticModel>,
+    pub enums: HashMap<String, PyEnum>,
     pub routes: Vec<ApiRoute>,
 }
 
@@ -115,6 +135,9 @@ pub fn parse_source(source: &str) -> Result<ExtractedTypes> {
     let mut extracted = ExtractedTypes::default();
     let root = tree.root_node();
     
+    // Extract Python Enums
+    extract_enums(&root, source.as_bytes(), &mut extracted)?;
+    
     // Extract Pydantic models (classes inheriting from BaseModel)
     extract_pydantic_models(&root, source.as_bytes(), &mut extracted)?;
     
@@ -122,6 +145,119 @@ pub fn parse_source(source: &str) -> Result<ExtractedTypes> {
     extract_fastapi_routes(&root, source.as_bytes(), &mut extracted)?;
     
     Ok(extracted)
+}
+
+/// Extract Python Enum definitions
+fn extract_enums(
+    root: &Node,
+    source: &[u8],
+    extracted: &mut ExtractedTypes,
+) -> Result<()> {
+    let query_str = r#"
+        (class_definition
+            name: (identifier) @class_name
+            superclasses: (argument_list
+                (identifier) @base_class
+            )?
+            body: (block) @body
+        ) @class
+    "#;
+    
+    let query = Query::new(&tree_sitter_python::language(), query_str)
+        .context("Failed to create enum query")?;
+    
+    let mut cursor = QueryCursor::new();
+    let matches = cursor.matches(&query, *root, source);
+    
+    for m in matches {
+        let mut class_name = None;
+        let mut is_enum = false;
+        let mut body_node = None;
+        
+        for capture in m.captures {
+            let capture_name = query.capture_names()[capture.index as usize];
+            let text = capture.node.utf8_text(source).unwrap_or("");
+            
+            match capture_name {
+                "class_name" => class_name = Some(text.to_string()),
+                "base_class" => {
+                    if text == "Enum" || text == "IntEnum" || text == "StrEnum" {
+                        is_enum = true;
+                    }
+                }
+                "body" => body_node = Some(capture.node),
+                _ => {}
+            }
+        }
+        
+        if let (Some(name), true, Some(body)) = (class_name, is_enum, body_node) {
+            let py_enum = extract_enum_variants(&name, &body, source)?;
+            extracted.enums.insert(name, py_enum);
+        }
+    }
+    
+    Ok(())
+}
+
+/// Extract variants from an Enum body
+fn extract_enum_variants(name: &str, body: &Node, source: &[u8]) -> Result<PyEnum> {
+    let mut variants = Vec::new();
+    let mut docstring = None;
+    
+    let mut cursor = body.walk();
+    for child in body.children(&mut cursor) {
+        if child.kind() == "expression_statement" {
+            if let Some(assignment) = child.child(0) {
+                if assignment.kind() == "assignment" {
+                    let mut var_cursor = assignment.walk();
+                    let children: Vec<_> = assignment.children(&mut var_cursor).collect();
+                    
+                    // Get variant name
+                    let var_name = children
+                        .iter()
+                        .find(|n| n.kind() == "identifier")
+                        .and_then(|n| n.utf8_text(source).ok());
+                    
+                    // Get variant value (after =)
+                    let var_value = children
+                        .iter()
+                        .skip_while(|n| n.kind() != "=")
+                        .nth(1)
+                        .and_then(|n| n.utf8_text(source).ok());
+                    
+                    if let (Some(vname), Some(vvalue)) = (var_name, var_value) {
+                        if !vname.starts_with('_') {
+                            variants.push(EnumVariant {
+                                name: vname.to_string(),
+                                value: vvalue.trim_matches('"').trim_matches('\'').to_string(),
+                            });
+                        }
+                    }
+                }
+                // Check for docstring
+                if docstring.is_none() {
+                    if let Some(string_node) = child.child(0) {
+                        if string_node.kind() == "string" {
+                            docstring = Some(
+                                string_node
+                                    .utf8_text(source)
+                                    .unwrap_or("")
+                                    .trim_matches('"')
+                                    .trim_matches('\'')
+                                    .to_string(),
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    Ok(PyEnum {
+        name: name.to_string(),
+        variants,
+        docstring,
+    })
 }
 
 /// Extract Pydantic model definitions
@@ -426,6 +562,27 @@ pub fn parse_type_annotation(type_str: &str) -> PyType {
             .map(|s| s.trim().trim_matches('"').trim_matches('\'').to_string())
             .collect();
         return PyType::Literal(values);
+    }
+    
+    // Handle Generic type parameters (T, K, V, etc.)
+    if type_str.len() == 1 && type_str.chars().next().map_or(false, |c| c.is_uppercase()) {
+        return PyType::Generic(type_str.to_string());
+    }
+    
+    // Handle Generic types with parameters like Response[T], Paginated[User]
+    if type_str.contains('[') && type_str.ends_with(']') {
+        let bracket_pos = type_str.find('[').unwrap();
+        let base_type = &type_str[..bracket_pos];
+        let inner = &type_str[bracket_pos + 1..type_str.len() - 1];
+        
+        // Check if it's a known generic (List, Dict, etc.) - already handled above
+        if !matches!(base_type, "List" | "list" | "Dict" | "dict" | "Optional" | "Union" | "Literal") {
+            let type_params: Vec<PyType> = split_generic_args(inner)
+                .iter()
+                .map(|p| parse_type_annotation(p))
+                .collect();
+            return PyType::GenericType(base_type.to_string(), type_params);
+        }
     }
     
     // Assume it's a reference to another model

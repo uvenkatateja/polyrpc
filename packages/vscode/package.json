@@ -1,0 +1,78 @@
+{
+  "name": "polyrpc-vscode",
+  "displayName": "PolyRPC",
+  "description": "Real-time Python to TypeScript type inference",
+  "version": "0.1.0",
+  "publisher": "polyrpc",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Other"
+  ],
+  "keywords": [
+    "python",
+    "typescript",
+    "fastapi",
+    "pydantic",
+    "type-inference"
+  ],
+  "activationEvents": [
+    "workspaceContains:polyrpc.toml"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "polyrpc.start",
+        "title": "PolyRPC: Start Watching"
+      },
+      {
+        "command": "polyrpc.stop",
+        "title": "PolyRPC: Stop Watching"
+      },
+      {
+        "command": "polyrpc.generate",
+        "title": "PolyRPC: Generate Types"
+      },
+      {
+        "command": "polyrpc.init",
+        "title": "PolyRPC: Initialize Project"
+      }
+    ],
+    "configuration": {
+      "title": "PolyRPC",
+      "properties": {
+        "polyrpc.autoStart": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically start watching when a polyrpc.toml is detected"
+        },
+        "polyrpc.binaryPath": {
+          "type": "string",
+          "default": "",
+          "description": "Custom path to polyrpc binary (leave empty for auto-detect)"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0",
+    "@vscode/vsce": "^2.22.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/uvenkatateja/polyrpc.git",
+    "directory": "packages/vscode"
+  },
+  "license": "MIT"
+}

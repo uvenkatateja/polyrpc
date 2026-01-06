@@ -1,0 +1,11 @@
+[python]
+source_dir = "./backend"
+include = ["**/*.py"]
+exclude = ["__pycache__", "*.pyc", "venv"]
+
+[typescript]
+output_file = "./frontend/src/lib/polyrpc.d.ts"
+generate_client = true
+
+[api]
+base_url = "http://127.0.0.1:8000"

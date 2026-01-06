@@ -148,10 +148,10 @@ Python parsing Python is slow. We need <50ms response times to feel "instant". R
 - [x] TypeScript interface generation
 - [x] React Query integration
 - [x] FastAPI route extraction
-- [ ] Enum support
-- [ ] Generic types
-- [ ] VS Code extension
-- [ ] Electron support
+- [x] Enum support
+- [x] Generic types
+- [x] VS Code extension
+- [x] Electron support
 
 ## License
 
