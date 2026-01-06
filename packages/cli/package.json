@@ -33,13 +33,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/polyrpc/polyrpc.git",
+    "url": "https://github.com/uvenkatateja/polyrpc.git",
     "directory": "packages/cli"
   },
   "bugs": {
-    "url": "https://github.com/polyrpc/polyrpc/issues"
+    "url": "https://github.com/uvenkatateja/polyrpc/issues"
   },
-  "homepage": "https://polyrpc.dev",
+  "homepage": "https://polyrpc.vercel.app",
   "publishConfig": {
     "access": "public"
   }

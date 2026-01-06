@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 description = "Real-time Python to TypeScript type generator"
 license = "MIT"
-repository = "https://github.com/yourusername/polyrpc"
+repository = "https://github.com/uvenkatateja/polyrpc"
 
 [[bin]]
 name = "polyrpc"
