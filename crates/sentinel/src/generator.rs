@@ -402,6 +402,102 @@ fn generate_client_implementation(types: &ExtractedTypes, base_url: &str) -> Str
 }
 
 "#);
+
+    // SSE/Streaming subscribe helper
+    output.push_str(r#"export interface SubscribeOptions<T> {
+  onData: (data: T) => void;
+  onError?: (error: Error) => void;
+  onComplete?: () => void;
+}
+
+function subscribe<T>(
+  path: string,
+  query?: Record<string, unknown>,
+  options?: SubscribeOptions<T>
+): { unsubscribe: () => void } {
+  let url = `${BASE_URL}${path}`;
+  
+  // Add query parameters
+  if (query) {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (value !== undefined && value !== null) {
+        params.append(key, String(value));
+      }
+    }
+    const queryString = params.toString();
+    if (queryString) {
+      url += `?${queryString}`;
+    }
+  }
+  
+  const controller = new AbortController();
+  
+  (async () => {
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'text/event-stream',
+        },
+        signal: controller.signal,
+      });
+      
+      if (!response.ok) {
+        throw new PolyRPCError(
+          `Stream failed: ${response.status} ${response.statusText}`,
+          response.status
+        );
+      }
+      
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('No response body');
+      }
+      
+      const decoder = new TextDecoder();
+      let buffer = '';
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') {
+              options?.onComplete?.();
+              return;
+            }
+            try {
+              const parsed = JSON.parse(data) as T;
+              options?.onData(parsed);
+            } catch {
+              // If not JSON, pass as string
+              options?.onData(data as T);
+            }
+          }
+        }
+      }
+      
+      options?.onComplete?.();
+    } catch (error) {
+      if ((error as Error).name !== 'AbortError') {
+        options?.onError?.(error as Error);
+      }
+    }
+  })();
+  
+  return {
+    unsubscribe: () => controller.abort(),
+  };
+}
+
+"#);
     
     // Generate the py client object with tRPC-like pattern
     output.push_str("// ============ Type-Safe Client ============\n\n");
@@ -470,11 +566,33 @@ fn generate_client_implementation(types: &ExtractedTypes, base_url: &str) -> Str
             
             // Determine if this is a query (GET) or mutation (POST/PUT/DELETE/PATCH)
             let is_query = method == "GET";
+            let is_streaming = route.is_streaming;
             
             output.push_str(&format!("    {}: {{\n", route.function_name));
             
-            // Generate query method
-            if is_query {
+            // Generate subscribe method for streaming routes
+            if is_streaming {
+                if needs_input {
+                    if has_query_params {
+                        output.push_str(&format!(
+                            "      subscribe: (input: {}, options: SubscribeOptions<string>) => subscribe<string>({}, {}, options),\n",
+                            input_type, path_expr, query_extract
+                        ));
+                    } else {
+                        output.push_str(&format!(
+                            "      subscribe: (input: {}, options: SubscribeOptions<string>) => subscribe<string>({}, undefined, options),\n",
+                            input_type, path_expr
+                        ));
+                    }
+                } else {
+                    output.push_str(&format!(
+                        "      subscribe: (options: SubscribeOptions<string>) => subscribe<string>({}, undefined, options),\n",
+                        path_expr
+                    ));
+                }
+            }
+            // Generate query method for GET requests
+            else if is_query {
                 if needs_input {
                     if has_query_params && !has_path_params && !has_body {
                         // Only query params

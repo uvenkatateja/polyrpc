@@ -100,6 +100,7 @@ pub struct ApiRoute {
     #[allow(dead_code)]
     pub query_params: Vec<ModelField>,
     pub path_params: Vec<String>,
+    pub is_streaming: bool,    // StreamingResponse or EventSourceResponse
 }
 
 /// All extracted types from Python source
@@ -783,6 +784,14 @@ fn extract_fastapi_routes(
                     &path_params
                 );
                 
+                // Check if this is a streaming response
+                let is_streaming = return_type.as_ref().map_or(false, |rt| {
+                    rt.contains("StreamingResponse") || 
+                    rt.contains("EventSourceResponse") ||
+                    rt.contains("AsyncGenerator") ||
+                    rt.contains("Generator")
+                });
+                
                 extracted.routes.push(ApiRoute {
                     method,
                     path,
@@ -791,6 +800,7 @@ fn extract_fastapi_routes(
                     response_model: return_type,
                     query_params,
                     path_params,
+                    is_streaming,
                 });
             }
         }

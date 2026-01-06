@@ -216,6 +216,41 @@ py.users.get_users.query({
 // → GET /users?skip=0&limit=50&search=john&role=admin
 ```
 
+## SSE/Streaming (for AI/LLM Apps)
+
+PolyRPC automatically detects `StreamingResponse` and generates `.subscribe()` methods:
+
+```python
+from fastapi.responses import StreamingResponse
+
+@app.get("/chat/stream")
+async def stream_chat(message: str) -> StreamingResponse:
+    async def generate():
+        for token in llm.stream(message):
+            yield f"data: {token}\n\n"
+        yield "data: [DONE]\n\n"
+    return StreamingResponse(generate(), media_type="text/event-stream")
+```
+
+Generates:
+
+```typescript
+// Subscribe to streaming response
+const { unsubscribe } = py.chat.stream_chat.subscribe(
+  { message: "Hello, AI!" },
+  {
+    onData: (token) => console.log(token),  // Called for each token
+    onError: (error) => console.error(error),
+    onComplete: () => console.log("Done!"),
+  }
+);
+
+// Cancel the stream
+unsubscribe();
+```
+
+Perfect for building ChatGPT-like interfaces with FastAPI + React!
+
 ## Packages
 
 | Package | Description | Install |
