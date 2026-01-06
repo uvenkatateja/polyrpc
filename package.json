@@ -5,8 +5,6 @@
   "scripts": {
     "build": "pnpm -r build",
     "dev": "pnpm -r --parallel dev",
-    "test": "pnpm -r test",
-    "lint": "pnpm -r lint",
     "clean": "pnpm -r exec rm -rf dist node_modules .next .turbo",
     "changeset": "changeset",
     "version": "changeset version",
