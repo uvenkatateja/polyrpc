@@ -8,9 +8,8 @@ use crate::generator;
 use crate::parser;
 use anyhow::Result;
 use colored::Colorize;
-use notify::{Config as NotifyConfig, RecommendedWatcher, RecursiveMode, Watcher};
-use notify_debouncer_mini::{new_debouncer, DebouncedEventKind};
-use std::path::Path;
+use notify::RecursiveMode;
+use notify_debouncer_mini::new_debouncer;
 use std::sync::mpsc::channel;
 use std::time::{Duration, Instant};
 

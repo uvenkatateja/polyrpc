@@ -2,7 +2,7 @@
 //!
 //! Converts parsed Python types into TypeScript definitions.
 
-use crate::parser::{ApiRoute, ExtractedTypes, ModelField, PyType, PydanticModel};
+use crate::parser::{ApiRoute, ExtractedTypes, PyType, PydanticModel};
 use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::fs;
@@ -93,7 +93,7 @@ fn py_type_to_ts(py_type: &PyType) -> String {
             quoted.join(" | ")
         }
         PyType::Reference(name) => name.clone(),
-        PyType::Unknown(name) => {
+        PyType::Unknown(_name) => {
             // Log warning in debug mode
             #[cfg(debug_assertions)]
             eprintln!("Warning: Unknown type '{}' mapped to 'unknown'", name);
@@ -103,7 +103,7 @@ fn py_type_to_ts(py_type: &PyType) -> String {
 }
 
 /// Generate API route types
-fn generate_api_types(routes: &[ApiRoute], models: &HashMap<String, PydanticModel>) -> String {
+fn generate_api_types(routes: &[ApiRoute], _models: &HashMap<String, PydanticModel>) -> String {
     let mut output = String::new();
     
     // Group routes by path prefix for organization
@@ -112,7 +112,7 @@ fn generate_api_types(routes: &[ApiRoute], models: &HashMap<String, PydanticMode
     for route in routes {
         let method_lower = route.method.to_lowercase();
         let path_key = route.path.replace('/', "_").replace('{', "").replace('}', "");
-        let path_key = if path_key.starts_with('_') {
+        let _path_key = if path_key.starts_with('_') {
             &path_key[1..]
         } else {
             &path_key
@@ -195,7 +195,7 @@ fn generate_namespace(types: &ExtractedTypes) -> String {
         output.push_str(&format!("  {}: {{\n", group));
         
         for route in routes {
-            let method_lower = route.method.to_lowercase();
+            let _method_lower = route.method.to_lowercase();
             let response_type = route
                 .response_model
                 .as_ref()

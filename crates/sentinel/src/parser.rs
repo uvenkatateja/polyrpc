@@ -36,6 +36,7 @@ pub struct ModelField {
     pub name: String,
     pub py_type: PyType,
     pub optional: bool,
+    #[allow(dead_code)]
     pub default: Option<String>,
     pub description: Option<String>,
 }
@@ -56,6 +57,7 @@ pub struct ApiRoute {
     pub function_name: String,
     pub request_model: Option<String>,
     pub response_model: Option<String>,
+    #[allow(dead_code)]
     pub query_params: Vec<ModelField>,
     pub path_params: Vec<String>,
 }
