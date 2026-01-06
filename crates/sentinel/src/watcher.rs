@@ -97,19 +97,25 @@ fn regenerate(config: &Config) -> Result<Duration> {
     // Parse all Python files
     let types = parser::parse_directory(&config.python.source_dir)?;
     
-    // Generate and write TypeScript definitions
-    generator::write_definitions(&config.typescript.output_file, &types)?;
+    // Generate and write TypeScript client
+    generator::write_definitions(
+        &config.typescript.output_file,
+        &types,
+        &config.api.base_url,
+    )?;
     
     let duration = start.elapsed();
     
     // Log stats
     let model_count = types.models.len();
+    let enum_count = types.enums.len();
     let route_count = types.routes.len();
     
-    if model_count > 0 || route_count > 0 {
+    if model_count > 0 || enum_count > 0 || route_count > 0 {
         println!(
-            "   {} models, {} routes → {}",
+            "   {} models, {} enums, {} routes → {}",
             model_count.to_string().bright_cyan(),
+            enum_count.to_string().bright_cyan(),
             route_count.to_string().bright_cyan(),
             config.typescript.output_file.display().to_string().green()
         );
@@ -128,7 +134,7 @@ mod tests {
     fn test_regenerate() {
         let temp = tempdir().unwrap();
         let python_dir = temp.path().join("backend");
-        let ts_file = temp.path().join("frontend/polyrpc.d.ts");
+        let ts_file = temp.path().join("frontend/polyrpc.ts");
         
         fs::create_dir_all(&python_dir).unwrap();
         
@@ -155,7 +161,10 @@ class User(BaseModel):
                 output_file: ts_file.clone(),
                 generate_client: true,
             },
-            api: Default::default(),
+            api: crate::config::ApiConfig {
+                base_url: "http://localhost:8000".to_string(),
+                prefix: String::new(),
+            },
         };
         
         let duration = regenerate(&config).unwrap();
@@ -164,5 +173,6 @@ class User(BaseModel):
         let content = fs::read_to_string(&ts_file).unwrap();
         assert!(content.contains("interface User"));
         assert!(content.contains("name: string"));
+        assert!(content.contains("BASE_URL"));
     }
 }

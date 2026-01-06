@@ -667,6 +667,7 @@ fn extract_fastapi_routes(
         let mut method = None;
         let mut func_name = None;
         let mut args_node = None;
+        let mut params_node = None;
         let mut return_type = None;
         
         for capture in m.captures {
@@ -678,6 +679,7 @@ fn extract_fastapi_routes(
                 "method" => method = Some(text.to_uppercase()),
                 "func_name" => func_name = Some(text.to_string()),
                 "args" => args_node = Some(capture.node),
+                "params" => params_node = Some(capture.node),
                 "return_type" => return_type = Some(text.to_string()),
                 _ => {}
             }
@@ -708,11 +710,14 @@ fn extract_fastapi_routes(
                     .map(|s| s[1..s.len() - 1].to_string())
                     .collect();
                 
+                // Extract request body model from function parameters
+                let request_model = extract_request_body_model(params_node, source, &extracted.models);
+                
                 extracted.routes.push(ApiRoute {
                     method,
                     path,
                     function_name: func_name,
-                    request_model: None, // TODO: Extract from function params
+                    request_model,
                     response_model: return_type,
                     query_params: Vec::new(),
                     path_params,
@@ -722,6 +727,37 @@ fn extract_fastapi_routes(
     }
     
     Ok(())
+}
+
+/// Extract request body model from function parameters
+/// Looks for parameters with type annotations that match known Pydantic models
+fn extract_request_body_model(
+    params_node: Option<Node>,
+    source: &[u8],
+    models: &HashMap<String, PydanticModel>,
+) -> Option<String> {
+    let params = params_node?;
+    
+    let mut cursor = params.walk();
+    for child in params.children(&mut cursor) {
+        // Look for typed parameters: (param_name: TypeName)
+        if child.kind() == "typed_parameter" || child.kind() == "typed_default_parameter" {
+            let mut param_cursor = child.walk();
+            for param_child in child.children(&mut param_cursor) {
+                if param_child.kind() == "type" {
+                    if let Ok(type_name) = param_child.utf8_text(source) {
+                        let type_name = type_name.trim();
+                        // Check if this type is a known Pydantic model
+                        if models.contains_key(type_name) {
+                            return Some(type_name.to_string());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    None
 }
 
 #[cfg(test)]

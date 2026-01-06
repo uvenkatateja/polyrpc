@@ -67,7 +67,11 @@ async fn main() -> Result<()> {
         Commands::Generate { config } => {
             let cfg = config::load_config(&config)?;
             let types = parser::parse_directory(&cfg.python.source_dir)?;
-            generator::write_definitions(&cfg.typescript.output_file, &types)?;
+            generator::write_definitions(
+                &cfg.typescript.output_file,
+                &types,
+                &cfg.api.base_url,
+            )?;
             println!(
                 "{} Generated {} models, {} enums, {} routes",
                 "✓".green(),
