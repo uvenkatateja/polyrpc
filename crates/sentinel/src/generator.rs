@@ -2,7 +2,7 @@
 //!
 //! Converts parsed Python types into TypeScript definitions.
 
-use crate::parser::{ApiRoute, ExtractedTypes, PyType, PydanticModel};
+use crate::parser::{ApiRoute, ExtractedTypes, ModelField, PyType, PydanticModel};
 use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::fs;
@@ -93,7 +93,7 @@ fn py_type_to_ts(py_type: &PyType) -> String {
             quoted.join(" | ")
         }
         PyType::Reference(name) => name.clone(),
-        PyType::Unknown(_name) => {
+        PyType::Unknown(name) => {
             // Log warning in debug mode
             #[cfg(debug_assertions)]
             eprintln!("Warning: Unknown type '{}' mapped to 'unknown'", name);
