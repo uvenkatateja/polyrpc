@@ -1,13 +1,13 @@
 import * as vscode from 'vscode';
-import * as cp from 'child_process';
-import * as path from 'path';
-import * as fs from 'fs';
+import { spawn, exec, ChildProcess } from 'child_process';
+import { join } from 'path';
+import { existsSync } from 'fs';
 
-let watchProcess: cp.ChildProcess | null = null;
+let watchProcess: ChildProcess | null = null;
 let statusBarItem: vscode.StatusBarItem;
 let outputChannel: vscode.OutputChannel;
 
-export function activate(context: vscode.ExtensionContext) {
+export function activate(context: vscode.ExtensionContext): void {
     outputChannel = vscode.window.createOutputChannel('PolyRPC');
     
     // Create status bar item
@@ -35,7 +35,7 @@ export function activate(context: vscode.ExtensionContext) {
     outputChannel.appendLine('PolyRPC extension activated');
 }
 
-export function deactivate() {
+export function deactivate(): void {
     stopWatching();
 }
 
@@ -43,15 +43,15 @@ function hasPolyrpcConfig(): boolean {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (!workspaceFolder) return false;
     
-    const configPath = path.join(workspaceFolder.uri.fsPath, 'polyrpc.toml');
-    return fs.existsSync(configPath);
+    const configPath = join(workspaceFolder.uri.fsPath, 'polyrpc.toml');
+    return existsSync(configPath);
 }
 
 function getBinaryPath(): string {
     const config = vscode.workspace.getConfiguration('polyrpc');
     const customPath = config.get<string>('binaryPath');
     
-    if (customPath && fs.existsSync(customPath)) {
+    if (customPath && existsSync(customPath)) {
         return customPath;
     }
     
@@ -59,7 +59,7 @@ function getBinaryPath(): string {
     return 'polyrpc';
 }
 
-async function startWatching() {
+async function startWatching(): Promise<void> {
     if (watchProcess) {
         vscode.window.showInformationMessage('PolyRPC is already watching');
         return;
@@ -86,26 +86,26 @@ async function startWatching() {
     const binaryPath = getBinaryPath();
     
     try {
-        watchProcess = cp.spawn(binaryPath, ['watch'], {
+        watchProcess = spawn(binaryPath, ['watch'], {
             cwd: workspaceFolder.uri.fsPath,
             shell: true
         });
 
-        watchProcess.stdout?.on('data', (data) => {
+        watchProcess.stdout?.on('data', (data: Buffer) => {
             outputChannel.appendLine(data.toString());
         });
 
-        watchProcess.stderr?.on('data', (data) => {
+        watchProcess.stderr?.on('data', (data: Buffer) => {
             outputChannel.appendLine(`[ERROR] ${data.toString()}`);
         });
 
-        watchProcess.on('close', (code) => {
+        watchProcess.on('close', (code: number | null) => {
             outputChannel.appendLine(`PolyRPC process exited with code ${code}`);
             watchProcess = null;
             updateStatusBar(false);
         });
 
-        watchProcess.on('error', (err) => {
+        watchProcess.on('error', (err: Error) => {
             vscode.window.showErrorMessage(`Failed to start PolyRPC: ${err.message}`);
             outputChannel.appendLine(`[ERROR] ${err.message}`);
             watchProcess = null;
@@ -120,7 +120,7 @@ async function startWatching() {
     }
 }
 
-function stopWatching() {
+function stopWatching(): void {
     if (watchProcess) {
         watchProcess.kill();
         watchProcess = null;
@@ -130,7 +130,7 @@ function stopWatching() {
     }
 }
 
-function toggleWatch() {
+function toggleWatch(): void {
     if (watchProcess) {
         stopWatching();
     } else {
@@ -138,7 +138,7 @@ function toggleWatch() {
     }
 }
 
-async function generateTypes() {
+async function generateTypes(): Promise<void> {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (!workspaceFolder) {
         vscode.window.showErrorMessage('No workspace folder open');
@@ -149,23 +149,27 @@ async function generateTypes() {
     
     outputChannel.appendLine('Generating types...');
     
-    cp.exec(`${binaryPath} generate`, { cwd: workspaceFolder.uri.fsPath }, (error, stdout, stderr) => {
-        if (error) {
-            vscode.window.showErrorMessage(`PolyRPC generate failed: ${error.message}`);
-            outputChannel.appendLine(`[ERROR] ${error.message}`);
-            return;
+    exec(
+        `${binaryPath} generate`,
+        { cwd: workspaceFolder.uri.fsPath },
+        (error: Error | null, stdout: string, stderr: string) => {
+            if (error) {
+                vscode.window.showErrorMessage(`PolyRPC generate failed: ${error.message}`);
+                outputChannel.appendLine(`[ERROR] ${error.message}`);
+                return;
+            }
+            
+            if (stderr) {
+                outputChannel.appendLine(`[WARN] ${stderr}`);
+            }
+            
+            outputChannel.appendLine(stdout);
+            vscode.window.showInformationMessage('PolyRPC: Types generated successfully');
         }
-        
-        if (stderr) {
-            outputChannel.appendLine(`[WARN] ${stderr}`);
-        }
-        
-        outputChannel.appendLine(stdout);
-        vscode.window.showInformationMessage('PolyRPC: Types generated successfully');
-    });
+    );
 }
 
-async function initProject() {
+async function initProject(): Promise<void> {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (!workspaceFolder) {
         vscode.window.showErrorMessage('No workspace folder open');
@@ -174,19 +178,23 @@ async function initProject() {
 
     const binaryPath = getBinaryPath();
     
-    cp.exec(`${binaryPath} init`, { cwd: workspaceFolder.uri.fsPath }, (error, stdout, stderr) => {
-        if (error) {
-            vscode.window.showErrorMessage(`PolyRPC init failed: ${error.message}`);
-            outputChannel.appendLine(`[ERROR] ${error.message}`);
-            return;
+    exec(
+        `${binaryPath} init`,
+        { cwd: workspaceFolder.uri.fsPath },
+        (error: Error | null, stdout: string, _stderr: string) => {
+            if (error) {
+                vscode.window.showErrorMessage(`PolyRPC init failed: ${error.message}`);
+                outputChannel.appendLine(`[ERROR] ${error.message}`);
+                return;
+            }
+            
+            outputChannel.appendLine(stdout);
+            vscode.window.showInformationMessage('PolyRPC: Project initialized');
         }
-        
-        outputChannel.appendLine(stdout);
-        vscode.window.showInformationMessage('PolyRPC: Project initialized');
-    });
+    );
 }
 
-function updateStatusBar(watching: boolean) {
+function updateStatusBar(watching: boolean): void {
     if (watching) {
         statusBarItem.text = '$(eye) PolyRPC';
         statusBarItem.tooltip = 'PolyRPC is watching (click to stop)';
