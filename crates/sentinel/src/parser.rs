@@ -102,6 +102,7 @@ pub fn parse_directory(dir: &Path) -> Result<ExtractedTypes> {
         match parse_file(path) {
             Ok(types) => {
                 extracted.models.extend(types.models);
+                extracted.enums.extend(types.enums);
                 extracted.routes.extend(types.routes);
             }
             Err(e) => {

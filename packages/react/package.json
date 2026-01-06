@@ -1,6 +1,6 @@
 {
   "name": "@polyrpc/react",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "React Query integration for PolyRPC",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -44,7 +44,7 @@
   },
   "homepage": "https://polyrpc.vercel.app",
   "dependencies": {
-    "@polyrpc/client": "workspace:*"
+    "@polyrpc/client": "^0.1.0"
   },
   "devDependencies": {
     "@tanstack/react-query": "^5.17.0",
