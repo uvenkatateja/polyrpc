@@ -3,8 +3,12 @@
 > The Invisible Bridge between Python Backends and TypeScript Frontends.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![CI](https://github.com/uvenkatateja/polyrpc/actions/workflows/ci.yml/badge.svg)](https://github.com/uvenkatateja/polyrpc/actions/workflows/ci.yml)
+[![Documentation](https://img.shields.io/badge/docs-polyrpc.vercel.app-blue)](https://polyrpc.vercel.app)
 
 PolyRPC provides **real-time type inference** from Python (FastAPI/Pydantic) to TypeScript, giving you the "tRPC experience" without abandoning Python.
+
+**[📚 Documentation](https://polyrpc.vercel.app)** | **[🚀 Getting Started](https://polyrpc.vercel.app/docs/getting-started)** | **[💡 Examples](./examples)**
 
 ## The Problem
 
@@ -25,6 +29,8 @@ You save server.py → Rust parses AST in <50ms → TypeScript types update → 
 **No commands. No build steps. Just save and code.**
 
 ## Quick Start
+
+**[📖 Full Documentation](https://polyrpc.vercel.app/docs/getting-started)**
 
 ```bash
 # Install CLI
@@ -105,7 +111,7 @@ polyrpc/
 
 ```bash
 # Clone the repo
-git clone https://github.com/yourusername/polyrpc
+git clone https://github.com/uvenkatateja/polyrpc
 cd polyrpc
 
 # Install dependencies
@@ -117,7 +123,13 @@ cargo build --release
 
 # Build npm packages
 pnpm build
+
+# Run example
+cd examples/fastapi-nextjs
+# See examples/fastapi-nextjs/README.md for details
 ```
+
+**[📖 Contributing Guide](./CONTRIBUTING.md)**
 
 ## Why Rust?
 
