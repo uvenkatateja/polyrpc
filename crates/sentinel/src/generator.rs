@@ -458,10 +458,10 @@ fn generate_client_implementation(types: &ExtractedTypes, base_url: &str) -> Str
                 format!("'{}'", route.path)
             };
             
-            // Build query params extraction
+            // Build query params extraction - use input.param syntax
             let query_extract = if has_query_params {
                 let params: Vec<String> = route.query_params.iter()
-                    .map(|p| p.name.clone())
+                    .map(|p| format!("{}: input.{}", p.name, p.name))
                     .collect();
                 format!("{{ {} }}", params.join(", "))
             } else {
