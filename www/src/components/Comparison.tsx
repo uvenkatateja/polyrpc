@@ -1,7 +1,6 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Check, X, Minus } from 'lucide-react';
 
 const comparisons = [
   {
@@ -43,18 +42,18 @@ const comparisons = [
 
 export function Comparison() {
   return (
-    <section className="py-24">
+    <section className="py-16 sm:py-20 lg:py-24">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          className="text-center mb-16"
+          className="text-center mb-10 sm:mb-16"
         >
-          <h2 className="text-3xl font-bold sm:text-4xl">
+          <h2 className="text-2xl sm:text-3xl font-bold lg:text-4xl">
             How Does It <span className="gradient-text">Compare</span>?
           </h2>
-          <p className="mt-4 text-lg text-zinc-400 max-w-2xl mx-auto">
+          <p className="mt-3 sm:mt-4 text-base sm:text-lg text-zinc-400 max-w-2xl mx-auto px-4">
             PolyRPC fills the gap that no other tool addresses.
           </p>
         </motion.div>
@@ -63,28 +62,28 @@ export function Comparison() {
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          className="overflow-x-auto"
+          className="overflow-x-auto rounded-xl border border-zinc-800"
         >
-          <table className="w-full border-collapse">
+          <table className="w-full border-collapse min-w-[600px]">
             <thead>
-              <tr className="border-b border-zinc-800">
-                <th className="py-4 px-4 text-left text-zinc-400 font-medium">Feature</th>
-                <th className="py-4 px-4 text-center text-zinc-400 font-medium">Manual</th>
-                <th className="py-4 px-4 text-center text-zinc-400 font-medium">OpenAPI</th>
-                <th className="py-4 px-4 text-center text-zinc-400 font-medium">tRPC</th>
-                <th className="py-4 px-4 text-center font-medium">
+              <tr className="border-b border-zinc-800 bg-zinc-900/50">
+                <th className="py-3 sm:py-4 px-3 sm:px-4 text-left text-zinc-400 font-medium text-xs sm:text-sm">Feature</th>
+                <th className="py-3 sm:py-4 px-3 sm:px-4 text-center text-zinc-400 font-medium text-xs sm:text-sm">Manual</th>
+                <th className="py-3 sm:py-4 px-3 sm:px-4 text-center text-zinc-400 font-medium text-xs sm:text-sm">OpenAPI</th>
+                <th className="py-3 sm:py-4 px-3 sm:px-4 text-center text-zinc-400 font-medium text-xs sm:text-sm">tRPC</th>
+                <th className="py-3 sm:py-4 px-3 sm:px-4 text-center font-medium text-xs sm:text-sm">
                   <span className="gradient-text">PolyRPC</span>
                 </th>
               </tr>
             </thead>
             <tbody>
-              {comparisons.map((row, index) => (
+              {comparisons.map((row) => (
                 <tr key={row.feature} className="border-b border-zinc-800/50">
-                  <td className="py-4 px-4 font-medium">{row.feature}</td>
-                  <td className="py-4 px-4 text-center text-zinc-400">{row.manual}</td>
-                  <td className="py-4 px-4 text-center text-zinc-400">{row.openapi}</td>
-                  <td className="py-4 px-4 text-center text-zinc-400">{row.trpc}</td>
-                  <td className="py-4 px-4 text-center text-green-400 font-medium">{row.polyrpc}</td>
+                  <td className="py-3 sm:py-4 px-3 sm:px-4 font-medium text-xs sm:text-sm">{row.feature}</td>
+                  <td className="py-3 sm:py-4 px-3 sm:px-4 text-center text-zinc-400 text-xs sm:text-sm">{row.manual}</td>
+                  <td className="py-3 sm:py-4 px-3 sm:px-4 text-center text-zinc-400 text-xs sm:text-sm">{row.openapi}</td>
+                  <td className="py-3 sm:py-4 px-3 sm:px-4 text-center text-zinc-400 text-xs sm:text-sm">{row.trpc}</td>
+                  <td className="py-3 sm:py-4 px-3 sm:px-4 text-center text-green-400 font-medium text-xs sm:text-sm">{row.polyrpc}</td>
                 </tr>
               ))}
             </tbody>
@@ -95,11 +94,12 @@ export function Comparison() {
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          className="mt-12 text-center"
+          className="mt-8 sm:mt-12 text-center px-4"
         >
-          <p className="text-lg text-zinc-400">
+          <p className="text-base sm:text-lg text-zinc-400">
             <span className="text-white font-semibold">tRPC is amazing</span> — but it requires a TypeScript backend.
-            <br />
+            <br className="hidden sm:block" />
+            <span className="sm:hidden"> </span>
             <span className="gradient-text font-semibold">PolyRPC</span> brings the same magic to Python developers.
           </p>
         </motion.div>

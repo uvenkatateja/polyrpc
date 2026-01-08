@@ -61,18 +61,18 @@ export function CodePreview() {
   };
 
   return (
-    <section className="py-24">
+    <section className="py-16 sm:py-20 lg:py-24">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          className="text-center mb-12"
+          className="text-center mb-8 sm:mb-12"
         >
-          <h2 className="text-3xl font-bold sm:text-4xl">
+          <h2 className="text-2xl sm:text-3xl font-bold lg:text-4xl">
             See the <span className="gradient-text">Magic</span> in Action
           </h2>
-          <p className="mt-4 text-lg text-zinc-400 max-w-2xl mx-auto">
+          <p className="mt-3 sm:mt-4 text-base sm:text-lg text-zinc-400 max-w-2xl mx-auto px-4">
             Write Python, get TypeScript. No manual work required.
           </p>
         </motion.div>
@@ -90,21 +90,21 @@ export function CodePreview() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                  className={`flex-1 px-2 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-medium transition-colors ${
                     activeTab === tab.id
                       ? 'bg-zinc-800 text-white border-b-2 border-blue-500'
                       : 'text-zinc-400 hover:text-white hover:bg-zinc-800/50'
                   }`}
                 >
                   <span className="hidden sm:inline">{tab.label} - </span>
-                  <span className="text-zinc-500">{tab.file}</span>
+                  <span className="text-zinc-500 truncate">{tab.file}</span>
                 </button>
               ))}
             </div>
 
             {/* Code content */}
-            <div className="p-4 overflow-x-auto">
-              <pre className="text-sm font-mono">
+            <div className="p-3 sm:p-4 overflow-x-auto">
+              <pre className="text-xs sm:text-sm font-mono whitespace-pre">
                 <code className={activeTab === 'python' ? 'text-blue-300' : activeTab === 'typescript' ? 'text-green-300' : 'text-purple-300'}>
                   {code[activeTab]}
                 </code>
@@ -113,13 +113,13 @@ export function CodePreview() {
 
             {/* Arrow indicator */}
             {activeTab === 'python' && (
-              <div className="border-t border-zinc-800 px-4 py-3 bg-zinc-800/50 flex items-center justify-center gap-2 text-sm">
+              <div className="border-t border-zinc-800 px-3 sm:px-4 py-2.5 sm:py-3 bg-zinc-800/50 flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm">
                 <span className="text-zinc-400">Save file</span>
                 <span className="text-yellow-400">→</span>
                 <span className="text-zinc-400">PolyRPC parses in</span>
                 <span className="text-green-400 font-mono">&lt;50ms</span>
                 <span className="text-yellow-400">→</span>
-                <span className="text-zinc-400">TypeScript types ready!</span>
+                <span className="text-zinc-400">Types ready!</span>
               </div>
             )}
           </div>
